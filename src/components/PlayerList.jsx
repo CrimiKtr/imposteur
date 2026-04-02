@@ -1,9 +1,10 @@
-export default function PlayerList({ players, myId, onSelect, selectedId }) {
+export default function PlayerList({ players, myId, onSelect, selectedId, reactions }) {
   return (
     <ul className="player-list">
       {players.map((player, i) => {
         const isSelf = player.id === myId;
         const isClickable = !!onSelect && !isSelf && !player.eliminated;
+        const reaction = reactions?.[player.id];
 
         return (
           <li
@@ -20,7 +21,14 @@ export default function PlayerList({ players, myId, onSelect, selectedId }) {
             <div className="player-avatar" title={player.name}>
               {player.avatar || player.name.charAt(0).toUpperCase()}
             </div>
-            <span className="player-name">{player.name}</span>
+            <span className="player-name">
+              {player.name}
+              {reaction && (
+                <span className="player-reaction" key={reaction.key}>
+                  {reaction.emoji}
+                </span>
+              )}
+            </span>
             {player.isHost && (
               <span className="player-badge player-badge--host">Hôte</span>
             )}

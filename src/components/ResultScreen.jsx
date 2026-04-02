@@ -3,7 +3,7 @@ import socket from '../socket.js';
 export default function ResultScreen({ voteResult, roomState, isHost, myId, role }) {
   if (!voteResult) return null;
 
-  const { tie, eliminatedPlayer, wasImpostor, gameOver, winner, secretWord, impostorName, voteTally } = voteResult;
+  const { tie, eliminatedPlayer, wasImpostor, wasInfiltre, gameOver, winner, secretWord, secretWordB, impostorName, voteTally, lastChanceCorrect } = voteResult;
 
   const handleNewGame = () => {
     socket.emit('new-game', { roomId: roomState.roomId });
@@ -31,8 +31,13 @@ export default function ResultScreen({ voteResult, roomState, isHost, myId, role
     resultTitle = 'L\'Imposteur gagne !';
     resultTitleClass = 'result-card__title--imposteur';
     resultCardClass = 'result-card--imposteur';
+  } else if (gameOver && winner === 'infiltre') {
+    resultIcon = '🕵️';
+    resultTitle = 'L\'Infiltré gagne !';
+    resultTitleClass = 'result-card__title--infiltre';
+    resultCardClass = 'result-card--infiltre';
   } else {
-    // Not game over — a civilian was eliminated
+    // Not game over — a player was eliminated
     resultIcon = '💀';
     resultTitle = `${eliminatedPlayer?.name} est éliminé(e)`;
     resultTitleClass = '';
@@ -68,25 +73,58 @@ export default function ResultScreen({ voteResult, roomState, isHost, myId, role
 
         {!tie && eliminatedPlayer && !gameOver && (
           <p className="result-card__detail">
-            <strong>{eliminatedPlayer.name}</strong> n'était pas l'imposteur. La partie continue !
+            <strong>{eliminatedPlayer.name}</strong> n'était {wasInfiltre ? 'qu\'un infiltré' : 'pas l\'imposteur'}. La partie continue !
           </p>
         )}
 
         {gameOver && winner === 'civils' && (
           <p className="result-card__detail">
-            L'imposteur <strong>{impostorName}</strong> a été démasqué !
-            <br />
+            {lastChanceCorrect === false && (
+              <>L'imposteur <strong>{impostorName}</strong> n'a pas trouvé le mot !<br /></>
+            )}
+            {lastChanceCorrect === undefined && (
+              <>L'imposteur <strong>{impostorName}</strong> a été démasqué !<br /></>
+            )}
             <span className="result-card__word">{secretWord}</span>
+            {secretWordB && (
+              <>
+                <br />
+                <span className="result-card__word-secondary">Mot infiltré : {secretWordB}</span>
+              </>
+            )}
           </p>
         )}
 
         {gameOver && winner === 'imposteur' && (
           <p className="result-card__detail">
-            L'imposteur <strong>{impostorName}</strong> a réussi à survivre !
-            <br />
+            {lastChanceCorrect ? (
+              <>L'imposteur <strong>{impostorName}</strong> a deviné le mot ! 🎯<br /></>
+            ) : (
+              <>L'imposteur <strong>{impostorName}</strong> a réussi à survivre !<br /></>
+            )}
             Le mot secret était :
             <br />
             <span className="result-card__word">{secretWord}</span>
+            {secretWordB && (
+              <>
+                <br />
+                <span className="result-card__word-secondary">Mot infiltré : {secretWordB}</span>
+              </>
+            )}
+          </p>
+        )}
+
+        {gameOver && winner === 'infiltre' && (
+          <p className="result-card__detail">
+            L'infiltré <strong>{impostorName}</strong> a survécu !
+            <br />
+            <span className="result-card__word">{secretWord}</span>
+            {secretWordB && (
+              <>
+                <br />
+                <span className="result-card__word-secondary">Mot infiltré : {secretWordB}</span>
+              </>
+            )}
           </p>
         )}
       </div>

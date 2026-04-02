@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import socket from '../socket.js';
 import Lobby from '../components/Lobby.jsx';
 import GamePlay from '../components/GamePlay.jsx';
 import VotePhase from '../components/VotePhase.jsx';
 import ResultScreen from '../components/ResultScreen.jsx';
+import LastChance from '../components/LastChance.jsx';
+import EmojiReactions from '../components/EmojiReactions.jsx';
 
 export default function Game() {
   const { roomId } = useParams();
@@ -12,10 +14,10 @@ export default function Game() {
 
   // Room state
   const [roomState, setRoomState] = useState(null);
-  const [phase, setPhase] = useState('lobby'); // lobby | playing | voting | result
+  const [phase, setPhase] = useState('lobby'); // lobby | playing | voting | last-chance | result
 
   // Game state
-  const [role, setRole] = useState(null); // 'civil' | 'imposteur'
+  const [role, setRole] = useState(null); // 'civil' | 'imposteur' | 'infiltre'
   const [secretWord, setSecretWord] = useState(null);
   const [playerOrder, setPlayerOrder] = useState([]);
 
@@ -26,6 +28,13 @@ export default function Game() {
   const [descriptions, setDescriptions] = useState([]);
   const [voteUpdate, setVoteUpdate] = useState(null);
   const [voteResult, setVoteResult] = useState(null);
+
+  // Last Chance state
+  const [lastChanceData, setLastChanceData] = useState(null);
+
+  // Emoji reactions state
+  const [reactions, setReactions] = useState({});
+  const reactionTimers = useRef({});
 
   // UI state
   const [error, setError] = useState('');
@@ -88,6 +97,7 @@ export default function Game() {
       setVoteResult(null);
       setVoteUpdate(null);
       setDescriptions([]);
+      setLastChanceData(null);
     };
 
     const onTurnUpdate = (data) => {
@@ -110,6 +120,29 @@ export default function Game() {
       setPhase('result');
     };
 
+    const onLastChancePhase = (data) => {
+      setLastChanceData(data);
+      setPhase('last-chance');
+    };
+
+    const onLastChanceResult = (data) => {
+      // Convert last chance result to a vote-result-like payload
+      setVoteResult({
+        tie: false,
+        eliminatedPlayer: lastChanceData?.eliminatedPlayer,
+        wasImpostor: true,
+        wasInfiltre: false,
+        gameOver: true,
+        winner: data.winner,
+        secretWord: data.secretWord,
+        secretWordB: data.secretWordB,
+        impostorName: data.impostorName,
+        voteTally: lastChanceData?.voteTally || {},
+        lastChanceCorrect: data.correct,
+      });
+      setPhase('result');
+    };
+
     const onBackToLobby = () => {
       setPhase('lobby');
       setRole(null);
@@ -119,6 +152,8 @@ export default function Game() {
       setDescriptions([]);
       setVoteResult(null);
       setVoteUpdate(null);
+      setLastChanceData(null);
+      setReactions({});
     };
 
     const onErrorMsg = (data) => {
@@ -129,15 +164,42 @@ export default function Game() {
       showNotification(`${data.playerName} s'est déconnecté`);
     };
 
+    const onPlayerReaction = (data) => {
+      const { playerId, emoji } = data;
+
+      // Clear previous timer for this player
+      if (reactionTimers.current[playerId]) {
+        clearTimeout(reactionTimers.current[playerId]);
+      }
+
+      // Set reaction with a unique key for animation restart
+      setReactions(prev => ({
+        ...prev,
+        [playerId]: { emoji, key: Date.now() },
+      }));
+
+      // Auto-clear after 2 seconds
+      reactionTimers.current[playerId] = setTimeout(() => {
+        setReactions(prev => {
+          const next = { ...prev };
+          delete next[playerId];
+          return next;
+        });
+      }, 2000);
+    };
+
     socket.on('room-update', onRoomUpdate);
     socket.on('game-started', onGameStarted);
     socket.on('turn-update', onTurnUpdate);
     socket.on('vote-phase', onVotePhase);
     socket.on('vote-update', onVoteUpdate);
     socket.on('vote-result', onVoteResultHandler);
+    socket.on('last-chance-phase', onLastChancePhase);
+    socket.on('last-chance-result', onLastChanceResult);
     socket.on('back-to-lobby', onBackToLobby);
     socket.on('error-msg', onErrorMsg);
     socket.on('player-disconnected', onPlayerDisconnected);
+    socket.on('player-reaction', onPlayerReaction);
 
     return () => {
       socket.off('room-update', onRoomUpdate);
@@ -146,11 +208,14 @@ export default function Game() {
       socket.off('vote-phase', onVotePhase);
       socket.off('vote-update', onVoteUpdate);
       socket.off('vote-result', onVoteResultHandler);
+      socket.off('last-chance-phase', onLastChancePhase);
+      socket.off('last-chance-result', onLastChanceResult);
       socket.off('back-to-lobby', onBackToLobby);
       socket.off('error-msg', onErrorMsg);
       socket.off('player-disconnected', onPlayerDisconnected);
+      socket.off('player-reaction', onPlayerReaction);
     };
-  }, [showError, showNotification]);
+  }, [showError, showNotification, lastChanceData]);
 
   // Pending room join (from direct link navigation)
   useEffect(() => {
@@ -158,6 +223,13 @@ export default function Game() {
     if (pending) {
       sessionStorage.removeItem('pendingRoom');
     }
+  }, []);
+
+  // Cleanup reaction timers on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(reactionTimers.current).forEach(clearTimeout);
+    };
   }, []);
 
   if (!roomState) {
@@ -176,6 +248,7 @@ export default function Game() {
 
   const isHost = roomState.hostId === socket.id;
   const myPlayer = roomState.players.find(p => p.id === socket.id);
+  const showEmojiBar = phase === 'playing' || phase === 'voting';
 
   return (
     <div className="page-container">
@@ -185,7 +258,7 @@ export default function Game() {
           roomId={roomId}
           isHost={isHost}
           myId={socket.id}
-          onStartGame={() => socket.emit('start-game', { roomId: roomState.roomId })}
+          onStartGame={(settings) => socket.emit('start-game', { roomId: roomState.roomId, settings })}
         />
       )}
 
@@ -199,6 +272,7 @@ export default function Game() {
           myId={socket.id}
           roomId={roomState.roomId}
           roomState={roomState}
+          reactions={reactions}
         />
       )}
 
@@ -208,6 +282,15 @@ export default function Game() {
           roomState={roomState}
           myId={socket.id}
           voteUpdate={voteUpdate}
+          reactions={reactions}
+        />
+      )}
+
+      {phase === 'last-chance' && (
+        <LastChance
+          eliminatedPlayer={lastChanceData?.eliminatedPlayer}
+          roomId={roomState.roomId}
+          myId={socket.id}
         />
       )}
 
@@ -219,6 +302,11 @@ export default function Game() {
           myId={socket.id}
           role={role}
         />
+      )}
+
+      {/* Floating emoji reaction bar */}
+      {showEmojiBar && (
+        <EmojiReactions roomId={roomState.roomId} />
       )}
 
       {error && <div className="toast">{error}</div>}

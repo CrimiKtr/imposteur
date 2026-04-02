@@ -2,7 +2,7 @@ import { useState } from 'react';
 import socket from '../socket.js';
 import PlayerList from './PlayerList.jsx';
 
-export default function GamePlay({ role, secretWord, playerOrder, turnData, descriptions, myId, roomId, roomState }) {
+export default function GamePlay({ role, secretWord, playerOrder, turnData, descriptions, myId, roomId, roomState, reactions }) {
   const [word, setWord] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
@@ -23,6 +23,9 @@ export default function GamePlay({ role, secretWord, playerOrder, turnData, desc
     if (e.key === 'Enter') handleSubmit();
   };
 
+  // Determine display: anonymous for civil/infiltré, explicit for imposteur
+  const isImpostor = role === 'imposteur';
+
   return (
     <>
       <div className="flex-between w-full mb-lg">
@@ -36,18 +39,22 @@ export default function GamePlay({ role, secretWord, playerOrder, turnData, desc
         </span>
       </div>
 
-      {/* Role Card */}
-      <div className={`role-card ${role === 'imposteur' ? 'role-card--imposteur' : 'role-card--civil'}`}>
-        <p className="role-card__label">Ton rôle</p>
-        <p className={`role-card__role ${role === 'imposteur' ? 'role-card__role--imposteur' : 'role-card__role--civil'}`}>
-          {role === 'imposteur' ? '🔴 Imposteur' : '🟢 Civil'}
-        </p>
-        {role === 'civil' ? (
-          <p className="role-card__word">{secretWord}</p>
-        ) : (
+      {/* Role Card — Anonymous for civil/infiltré */}
+      {isImpostor ? (
+        <div className="role-card role-card--imposteur">
+          <p className="role-card__label">Ton rôle</p>
+          <p className="role-card__role role-card__role--imposteur">🔴 Imposteur</p>
           <p className="role-card__word role-card__word--danger">Tu es l'Imposteur !</p>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="role-card role-card--secret">
+          <p className="role-card__label">Ton mot secret</p>
+          <p className="role-card__word">{secretWord}</p>
+          <p className="role-card__anonymous-hint">
+            🤫 Décris ton mot sans le dire
+          </p>
+        </div>
+      )}
 
       {/* Progress Bar */}
       <div className="progress-bar">
@@ -91,7 +98,7 @@ export default function GamePlay({ role, secretWord, playerOrder, turnData, desc
           <div>
             <div className="form-group" style={{ marginBottom: 'var(--space-md)' }}>
               <label className="form-label" htmlFor="word-input">
-                {role === 'imposteur'
+                {isImpostor
                   ? 'Donne un indice (sans te trahir !)'
                   : 'Décris le mot secret en un mot'
                 }

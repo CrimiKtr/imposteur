@@ -25,6 +25,12 @@ app.use(express.static(distPath));
 
 const gm = new GameManager();
 
+// ─── Emoji reaction cooldown tracking ───
+const reactionCooldowns = new Map(); // socketId -> lastReactionTimestamp
+
+// ─── Last chance timers ───
+const lastChanceTimers = new Map(); // roomId -> timeout
+
 // ─── Helper: send room state to all players in a room ───
 function broadcastRoomState(room) {
   const payload = {
@@ -40,15 +46,27 @@ function broadcastRoomState(room) {
     phase: room.phase,
     hostId: room.hostId,
     round: room.round,
+    settings: room.settings,
   };
   io.to(room.id).emit('room-update', payload);
 }
 
-function getPlayerRole(room, playerId) {
-  if (playerId === room.impostorId) {
-    return { role: 'imposteur', secretWord: null };
-  }
-  return { role: 'civil', secretWord: room.secretWord };
+function emitTurnUpdate(room) {
+  const currentPlayerId = room.playerOrder[room.currentTurnIndex];
+  const currentPlayer = room.players.find(p => p.id === currentPlayerId);
+
+  io.to(room.id).emit('turn-update', {
+    currentPlayerId,
+    currentPlayerName: currentPlayer?.name || '?',
+    descriptions: room.descriptions.map(d => ({
+      playerName: d.playerName,
+      playerId: d.playerId,
+      playerAvatar: d.playerAvatar || '🐱',
+      word: d.word,
+    })),
+    turnIndex: room.currentTurnIndex,
+    totalTurns: room.playerOrder.length,
+  });
 }
 
 // ─── Socket.IO Events ───
@@ -80,20 +98,20 @@ io.on('connection', (socket) => {
   });
 
   // ── Start Game ──
-  socket.on('start-game', ({ roomId }) => {
-    const result = gm.startGame(roomId, socket.id);
+  socket.on('start-game', ({ roomId, settings }) => {
+    const result = gm.startGame(roomId, socket.id, settings || {});
     if (!result.success) {
       socket.emit('error-msg', { message: result.error });
       return;
     }
 
     const room = gm.getRoom(roomId);
-    console.log(`[GAME] Room ${roomId} started — word: ${room.secretWord}, impostor: ${room.impostorId}`);
+    console.log(`[GAME] Room ${roomId} started — wordA: ${room.secretWordA}, wordB: ${room.secretWordB}, impostors: ${room.impostorIds.length}, infiltrés: ${room.undercoverIds.length}`);
 
     // Send role to each player individually
     for (const player of room.players) {
       if (!player.connected) continue;
-      const roleInfo = getPlayerRole(room, player.id);
+      const roleInfo = gm.getPlayerRole(room, player.id);
       io.to(player.id).emit('game-started', {
         ...roleInfo,
         playerOrder: room.playerOrder.map(id => {
@@ -157,17 +175,80 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // All voted — send result
+    // Check if Last Chance is triggered
+    if (result.triggerLastChance) {
+      // Emit last-chance phase to all players
+      io.to(roomId).emit('last-chance-phase', {
+        eliminatedPlayer: result.eliminatedPlayer,
+        voteTally: result.voteTally,
+      });
+      broadcastRoomState(room);
+
+      // Set server-side safety timer (22s to account for network latency)
+      const timer = setTimeout(() => {
+        const currentRoom = gm.getRoom(roomId);
+        if (currentRoom && currentRoom.phase === 'last-chance') {
+          const timeoutResult = gm.lastChanceTimeout(roomId);
+          if (timeoutResult) {
+            io.to(roomId).emit('last-chance-result', {
+              correct: false,
+              winner: timeoutResult.winner,
+              secretWord: timeoutResult.secretWord,
+              secretWordB: timeoutResult.secretWordB,
+              impostorName: timeoutResult.impostorName,
+              timeout: true,
+            });
+            broadcastRoomState(gm.getRoom(roomId));
+          }
+        }
+        lastChanceTimers.delete(roomId);
+      }, 22000);
+
+      lastChanceTimers.set(roomId, timer);
+      return;
+    }
+
+    // All voted — send result (no last chance)
     io.to(roomId).emit('vote-result', {
       tie: result.tie,
       eliminatedPlayer: result.eliminatedPlayer,
       wasImpostor: result.wasImpostor,
+      wasInfiltre: result.wasInfiltre || false,
       gameOver: result.gameOver,
       winner: result.winner,
       secretWord: result.secretWord || null,
+      secretWordB: result.secretWordB || null,
       impostorName: result.impostorName || null,
       voteTally: result.voteTally,
     });
+    broadcastRoomState(room);
+  });
+
+  // ── Last Chance Guess ──
+  socket.on('last-chance-guess', ({ roomId, guess }) => {
+    const result = gm.checkLastChanceGuess(roomId, socket.id, guess);
+    if (!result.success) {
+      socket.emit('error-msg', { message: result.error || 'Erreur.' });
+      return;
+    }
+
+    // Clear the safety timer
+    if (lastChanceTimers.has(roomId)) {
+      clearTimeout(lastChanceTimers.get(roomId));
+      lastChanceTimers.delete(roomId);
+    }
+
+    // Broadcast result to all players
+    io.to(roomId).emit('last-chance-result', {
+      correct: result.correct,
+      winner: result.winner,
+      secretWord: result.secretWord,
+      secretWordB: result.secretWordB,
+      impostorName: result.impostorName,
+      timeout: false,
+    });
+
+    const room = gm.getRoom(roomId);
     broadcastRoomState(room);
   });
 
@@ -179,10 +260,10 @@ io.on('connection', (socket) => {
     gm.continueGame(roomId);
     const updatedRoom = gm.getRoom(roomId);
 
-    // Re-send roles (same word, same impostor)
+    // Re-send roles (same word, same roles)
     for (const player of updatedRoom.players) {
       if (!player.connected || updatedRoom.eliminatedPlayers.includes(player.id)) continue;
-      const roleInfo = getPlayerRole(updatedRoom, player.id);
+      const roleInfo = gm.getPlayerRole(updatedRoom, player.id);
       io.to(player.id).emit('game-started', {
         ...roleInfo,
         playerOrder: updatedRoom.playerOrder.map(id => {
@@ -201,15 +282,51 @@ io.on('connection', (socket) => {
     const room = gm.getRoom(roomId);
     if (!room) return;
 
+    // Clear any last chance timer
+    if (lastChanceTimers.has(roomId)) {
+      clearTimeout(lastChanceTimers.get(roomId));
+      lastChanceTimers.delete(roomId);
+    }
+
     gm.newGame(roomId);
     const updatedRoom = gm.getRoom(roomId);
     io.to(roomId).emit('back-to-lobby');
     broadcastRoomState(updatedRoom);
   });
 
+  // ── Emoji Reactions ──
+  socket.on('send-reaction', ({ roomId, emoji }) => {
+    const allowedEmojis = ['🤨', '😂', '🔥', '🤐'];
+    if (!allowedEmojis.includes(emoji)) return;
+
+    // Check cooldown (2 seconds)
+    const now = Date.now();
+    const lastTime = reactionCooldowns.get(socket.id) || 0;
+    if (now - lastTime < 2000) {
+      socket.emit('error-msg', { message: 'Attends 2 secondes entre chaque réaction !' });
+      return;
+    }
+    reactionCooldowns.set(socket.id, now);
+
+    const room = gm.getRoom(roomId);
+    if (!room) return;
+
+    const player = room.players.find(p => p.id === socket.id);
+    if (!player) return;
+
+    // Broadcast reaction to all players in the room
+    io.to(roomId).emit('player-reaction', {
+      playerId: socket.id,
+      playerName: player.name,
+      emoji,
+    });
+  });
+
   // ── Disconnect ──
   socket.on('disconnect', () => {
     console.log(`[-] Disconnected: ${socket.id}`);
+    reactionCooldowns.delete(socket.id);
+
     const results = gm.handleDisconnect(socket.id);
 
     for (const result of results) {
@@ -217,27 +334,41 @@ io.on('connection', (socket) => {
       const room = result.room;
 
       if (result.impostorLeft) {
+        // Clear any last chance timer
+        if (lastChanceTimers.has(room.id)) {
+          clearTimeout(lastChanceTimers.get(room.id));
+          lastChanceTimers.delete(room.id);
+        }
+
         io.to(room.id).emit('vote-result', {
           tie: false,
-          eliminatedPlayer: { id: room.impostorId, name: result.playerName },
+          eliminatedPlayer: { id: room.impostorIds[0], name: result.playerName },
           wasImpostor: true,
+          wasInfiltre: false,
           gameOver: true,
           winner: 'civils',
-          secretWord: room.secretWord,
+          secretWord: room.secretWordA,
+          secretWordB: room.secretWordB,
           impostorName: result.playerName,
           voteTally: {},
           disconnected: true,
         });
       } else if (result.tooFewPlayers) {
-        const impostorObj = room.players.find(p => p.id === room.impostorId);
+        const impostorObj = room.players.find(p => room.impostorIds.includes(p.id));
+        const infiltreObj = room.players.find(p => room.undercoverIds.includes(p.id));
+        const winnerName = impostorObj?.name || infiltreObj?.name;
+        const winner = room.impostorIds.length > 0 ? 'imposteur' : 'infiltre';
+        
         io.to(room.id).emit('vote-result', {
           tie: false,
           eliminatedPlayer: null,
           wasImpostor: false,
+          wasInfiltre: false,
           gameOver: true,
-          winner: 'imposteur',
-          secretWord: room.secretWord,
-          impostorName: impostorObj?.name,
+          winner,
+          secretWord: room.secretWordA,
+          secretWordB: room.secretWordB,
+          impostorName: winnerName,
           voteTally: {},
           disconnected: true,
         });
@@ -249,24 +380,6 @@ io.on('connection', (socket) => {
     }
   });
 });
-
-function emitTurnUpdate(room) {
-  const currentPlayerId = room.playerOrder[room.currentTurnIndex];
-  const currentPlayer = room.players.find(p => p.id === currentPlayerId);
-
-  io.to(room.id).emit('turn-update', {
-    currentPlayerId,
-    currentPlayerName: currentPlayer?.name || '?',
-    descriptions: room.descriptions.map(d => ({
-      playerName: d.playerName,
-      playerId: d.playerId,
-      playerAvatar: d.playerAvatar || '🐱',
-      word: d.word,
-    })),
-    turnIndex: room.currentTurnIndex,
-    totalTurns: room.playerOrder.length,
-  });
-}
 
 // SPA fallback — serve index.html for any unmatched route
 app.get('*', (req, res) => {

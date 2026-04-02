@@ -3,8 +3,21 @@ import CopyLink from './CopyLink.jsx';
 import PlayerList from './PlayerList.jsx';
 
 export default function Lobby({ roomState, roomId, isHost, myId, onStartGame }) {
+  const [impostorCount, setImpostorCount] = useState(1);
+  const [undercoverCount, setUndercoverCount] = useState(0);
+
   const playerCount = roomState.players.length;
-  const canStart = isHost && playerCount >= 3;
+
+  // Max special roles: must leave at least 2 civils
+  const maxSpecialRoles = Math.max(0, playerCount - 2);
+  const maxImpostors = Math.min(1, maxSpecialRoles);
+  const maxUndercovers = Math.max(0, maxSpecialRoles - impostorCount);
+
+  const canStart = isHost && playerCount >= 3 && (impostorCount + undercoverCount) > 0;
+
+  const handleStart = () => {
+    onStartGame({ impostorCount, undercoverCount });
+  };
 
   return (
     <>
@@ -38,12 +51,66 @@ export default function Lobby({ roomState, roomId, isHost, myId, onStartGame }) 
 
         <PlayerList players={roomState.players} myId={myId} />
 
+        {/* ── Host Settings ── */}
+        {isHost && (
+          <div className="lobby-settings">
+            <div className="section-title mt-lg">
+              <span className="section-title__icon">⚙️</span>
+              Paramètres
+            </div>
+
+            <div className="setting-row">
+              <div className="setting-info">
+                <span className="setting-label">🔴 Imposteurs</span>
+                <span className="setting-hint">Ne connaît pas le mot</span>
+              </div>
+              <div className="stepper">
+                <button
+                  className="stepper__btn"
+                  onClick={() => setImpostorCount(Math.max(0, impostorCount - 1))}
+                  disabled={impostorCount <= 0}
+                  type="button"
+                >−</button>
+                <span className="stepper__value">{impostorCount}</span>
+                <button
+                  className="stepper__btn"
+                  onClick={() => setImpostorCount(Math.min(maxImpostors, impostorCount + 1))}
+                  disabled={impostorCount >= maxImpostors}
+                  type="button"
+                >+</button>
+              </div>
+            </div>
+
+            <div className="setting-row">
+              <div className="setting-info">
+                <span className="setting-label">🟡 Infiltrés</span>
+                <span className="setting-hint">Reçoit un mot proche</span>
+              </div>
+              <div className="stepper">
+                <button
+                  className="stepper__btn"
+                  onClick={() => setUndercoverCount(Math.max(0, undercoverCount - 1))}
+                  disabled={undercoverCount <= 0}
+                  type="button"
+                >−</button>
+                <span className="stepper__value">{undercoverCount}</span>
+                <button
+                  className="stepper__btn"
+                  onClick={() => setUndercoverCount(Math.min(maxUndercovers, undercoverCount + 1))}
+                  disabled={undercoverCount >= maxUndercovers}
+                  type="button"
+                >+</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div style={{ marginTop: 'var(--space-xl)' }}>
           {isHost ? (
             <button
               id="start-game-btn"
               className="btn btn--primary btn--full btn--lg"
-              onClick={onStartGame}
+              onClick={handleStart}
               disabled={!canStart}
             >
               {playerCount < 3
