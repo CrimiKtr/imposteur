@@ -1094,7 +1094,7 @@ body {
 /* ── Credits Footer ── */
 .credits {
   margin-top: auto;
-  padding: var(--space-xl) var(--space-md) var(--space-lg);
+  padding: var(--space-xl) var(--space-md) 80px;
   text-align: center;
   width: 100%;
   position: relative;
@@ -1307,7 +1307,7 @@ body {
 /* ── Emoji Reaction Bar ── */
 .emoji-bar {
   position: fixed;
-  bottom: var(--space-xl);
+  bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -1318,7 +1318,7 @@ body {
   border-radius: var(--radius-full);
   backdrop-filter: blur(20px);
   box-shadow: var(--shadow-lg);
-  z-index: 100;
+  z-index: 200;
   animation: fadeSlideUp 0.3s ease;
 }
 
@@ -1375,10 +1375,78 @@ body {
   100% { opacity: 0; }
 }
 
+/* ── Floating Emoji Overlay ── */
+.emoji-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 150;
+  overflow: hidden;
+}
+
+.emoji-float {
+  position: absolute;
+  bottom: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  animation: emojiRise 2.5s ease-out forwards;
+  pointer-events: none;
+}
+
+.emoji-float__emoji {
+  font-size: 2.2rem;
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.15));
+  animation: emojiWobble 0.6s ease-in-out;
+}
+
+.emoji-float__name {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(8px);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+
+@keyframes emojiRise {
+  0% {
+    transform: translateY(0) scale(0.5);
+    opacity: 0;
+  }
+  10% {
+    transform: translateY(-10px) scale(1.2);
+    opacity: 1;
+  }
+  20% {
+    transform: translateY(-30px) scale(1);
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-220px) scale(0.8);
+    opacity: 0;
+  }
+}
+
+@keyframes emojiWobble {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(-12deg); }
+  50% { transform: rotate(8deg); }
+  75% { transform: rotate(-4deg); }
+  100% { transform: rotate(0deg); }
+}
+
 /* ── Responsive additions ── */
 @media (max-width: 480px) {
   .emoji-bar {
-    bottom: var(--space-md);
+    bottom: 10px;
     gap: 4px;
     padding: 4px;
   }
