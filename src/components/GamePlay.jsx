@@ -43,8 +43,8 @@ export default function GamePlay({ role, secretWord, playerOrder, turnData, desc
       {isImpostor ? (
         <div className="role-card role-card--imposteur">
           <p className="role-card__label">Ton rôle</p>
-          <p className="role-card__role role-card__role--imposteur">🔴 Imposteur</p>
-          <p className="role-card__word role-card__word--danger">Tu es l'Imposteur !</p>
+          <p className="role-card__role role-card__role--imposteur">⚪ Mr White</p>
+          <p className="role-card__word role-card__word--danger">Tu es Mr White !</p>
         </div>
       ) : (
         <div className="role-card role-card--secret">

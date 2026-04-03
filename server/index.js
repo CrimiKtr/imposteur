@@ -106,7 +106,7 @@ io.on('connection', (socket) => {
     }
 
     const room = gm.getRoom(roomId);
-    console.log(`[GAME] Room ${roomId} started — wordA: ${room.secretWordA}, wordB: ${room.secretWordB}, impostors: ${room.impostorIds.length}, infiltrés: ${room.undercoverIds.length}`);
+    console.log(`[GAME] Room ${roomId} started — wordA: ${room.secretWordA}, wordB: ${room.secretWordB}, mr-white: ${room.impostorIds.length}, imposteurs: ${room.undercoverIds.length}`);
 
     // Send role to each player individually
     for (const player of room.players) {

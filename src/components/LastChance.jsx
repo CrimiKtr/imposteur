@@ -114,7 +114,7 @@ export default function LastChance({ eliminatedPlayer, roomId, myId, onResult })
               {eliminatedPlayer?.name} a une dernière chance ! 😰
             </h3>
             <p className="last-chance-subtitle">
-              L'imposteur tente de deviner le mot des Civils...
+              Mr White tente de deviner le mot des Civils...
             </p>
             <div className="last-chance-waiting">
               <span style={{ fontSize: '3rem' }}>🕵️</span>

@@ -45,7 +45,7 @@ export default function VotePhase({ descriptions, roomState, myId, voteUpdate })
           <>
             <div className="section-title mb-md">
               <span className="section-title__icon">🎯</span>
-              Qui est l'imposteur ?
+              Qui est Mr White ?
             </div>
             <ul className="player-list mb-lg">
               {activePlayers.map((player) => (

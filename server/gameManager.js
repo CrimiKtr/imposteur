@@ -120,7 +120,7 @@ class GameManager {
 
     // Need at least 1 special role
     if (impostorCount === 0 && undercoverCount === 0) {
-      return { success: false, error: 'Il faut au moins 1 Imposteur ou 1 Infiltré.' };
+      return { success: false, error: 'Il faut au moins 1 Mr White ou 1 Imposteur.' };
     }
 
     room.settings = { impostorCount, undercoverCount };

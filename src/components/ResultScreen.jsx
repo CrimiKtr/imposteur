@@ -28,12 +28,12 @@ export default function ResultScreen({ voteResult, roomState, isHost, myId, role
     resultCardClass = 'result-card--civils';
   } else if (gameOver && winner === 'imposteur') {
     resultIcon = '😈';
-    resultTitle = 'L\'Imposteur gagne !';
+    resultTitle = 'Mr White gagne !';
     resultTitleClass = 'result-card__title--imposteur';
     resultCardClass = 'result-card--imposteur';
   } else if (gameOver && winner === 'infiltre') {
     resultIcon = '🕵️';
-    resultTitle = 'L\'Infiltré gagne !';
+    resultTitle = 'L\'Imposteur gagne !';
     resultTitleClass = 'result-card__title--infiltre';
     resultCardClass = 'result-card--infiltre';
   } else {
@@ -73,23 +73,23 @@ export default function ResultScreen({ voteResult, roomState, isHost, myId, role
 
         {!tie && eliminatedPlayer && !gameOver && (
           <p className="result-card__detail">
-            <strong>{eliminatedPlayer.name}</strong> n'était {wasInfiltre ? 'qu\'un infiltré' : 'pas l\'imposteur'}. La partie continue !
+            <strong>{eliminatedPlayer.name}</strong> n'était {wasInfiltre ? 'que l\'imposteur' : 'pas Mr White'}. La partie continue !
           </p>
         )}
 
         {gameOver && winner === 'civils' && (
           <p className="result-card__detail">
             {lastChanceCorrect === false && (
-              <>L'imposteur <strong>{impostorName}</strong> n'a pas trouvé le mot !<br /></>
+              <>Mr White <strong>{impostorName}</strong> n'a pas trouvé le mot !<br /></>
             )}
             {lastChanceCorrect === undefined && (
-              <>L'imposteur <strong>{impostorName}</strong> a été démasqué !<br /></>
+              <>Mr White <strong>{impostorName}</strong> a été démasqué !<br /></>
             )}
             <span className="result-card__word">{secretWord}</span>
             {secretWordB && (
               <>
                 <br />
-                <span className="result-card__word-secondary">Mot infiltré : {secretWordB}</span>
+                <span className="result-card__word-secondary">Mot imposteur : {secretWordB}</span>
               </>
             )}
           </p>
@@ -98,9 +98,9 @@ export default function ResultScreen({ voteResult, roomState, isHost, myId, role
         {gameOver && winner === 'imposteur' && (
           <p className="result-card__detail">
             {lastChanceCorrect ? (
-              <>L'imposteur <strong>{impostorName}</strong> a deviné le mot ! 🎯<br /></>
+              <>Mr White <strong>{impostorName}</strong> a deviné le mot ! 🎯<br /></>
             ) : (
-              <>L'imposteur <strong>{impostorName}</strong> a réussi à survivre !<br /></>
+              <>Mr White <strong>{impostorName}</strong> a réussi à survivre !<br /></>
             )}
             Le mot secret était :
             <br />
@@ -108,7 +108,7 @@ export default function ResultScreen({ voteResult, roomState, isHost, myId, role
             {secretWordB && (
               <>
                 <br />
-                <span className="result-card__word-secondary">Mot infiltré : {secretWordB}</span>
+                <span className="result-card__word-secondary">Mot imposteur : {secretWordB}</span>
               </>
             )}
           </p>
@@ -116,13 +116,13 @@ export default function ResultScreen({ voteResult, roomState, isHost, myId, role
 
         {gameOver && winner === 'infiltre' && (
           <p className="result-card__detail">
-            L'infiltré <strong>{impostorName}</strong> a survécu !
+            L'imposteur <strong>{impostorName}</strong> a survécu !
             <br />
             <span className="result-card__word">{secretWord}</span>
             {secretWordB && (
               <>
                 <br />
-                <span className="result-card__word-secondary">Mot infiltré : {secretWordB}</span>
+                <span className="result-card__word-secondary">Mot imposteur : {secretWordB}</span>
               </>
             )}
           </p>

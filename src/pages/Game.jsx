@@ -248,7 +248,7 @@ export default function Game() {
 
   const isHost = roomState.hostId === socket.id;
   const myPlayer = roomState.players.find(p => p.id === socket.id);
-  const showEmojiBar = phase === 'playing' || phase === 'voting';
+  const showEmojiBar = phase !== 'lobby';
 
   return (
     <div className="page-container">

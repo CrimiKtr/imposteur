@@ -61,7 +61,7 @@ export default function Lobby({ roomState, roomId, isHost, myId, onStartGame }) 
 
             <div className="setting-row">
               <div className="setting-info">
-                <span className="setting-label">🔴 Imposteurs</span>
+                <span className="setting-label">⚪ Mr White</span>
                 <span className="setting-hint">Ne connaît pas le mot</span>
               </div>
               <div className="stepper">
@@ -83,7 +83,7 @@ export default function Lobby({ roomState, roomId, isHost, myId, onStartGame }) 
 
             <div className="setting-row">
               <div className="setting-info">
-                <span className="setting-label">🟡 Infiltrés</span>
+                <span className="setting-label">🔴 Imposteurs</span>
                 <span className="setting-hint">Reçoit un mot proche</span>
               </div>
               <div className="stepper">
